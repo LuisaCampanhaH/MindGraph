@@ -2,41 +2,55 @@ const canvas = document.getElementById('graph-canvas');
 const ctx = canvas.getContext('2d');
 let W, H;
 
+// ── Canvas resize ──────────────────────────────────────────
+
 function resizeCanvas() {
   const wrap = document.getElementById('canvas-wrap');
   W = wrap.clientWidth;
   H = wrap.clientHeight;
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width  = W * (window.devicePixelRatio || 1);
+  canvas.height = H * (window.devicePixelRatio || 1);
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
   draw();
 }
 
-window.addEventListener('resize', resizeCanvas);
+const ro = new ResizeObserver(() => resizeCanvas());
+ro.observe(document.getElementById('canvas-wrap'));
 requestAnimationFrame(() => { resizeCanvas(); startSim(50); });
+
+// ── Sidebar toggle ─────────────────────────────────────────
+
+document.getElementById('sidebar-toggle').addEventListener('click', () => {
+  document.body.classList.toggle('sidebar-open');
+  const open = document.body.classList.contains('sidebar-open');
+  document.getElementById('sidebar').classList.toggle('collapsed', !open);
+  setTimeout(resizeCanvas, 220);
+});
+
+// ── State ──────────────────────────────────────────────────
 
 let nodes = [], edges = [], selected = null, dragging = null;
 let dragOff = { x: 0, y: 0 }, nextId = 0, animFrame = null;
 let pairs = [], pairIdx = 0, round = 1, seenPairs = new Set();
-let directedMode = false;
-let editingNode = null;
+let directedMode = false, darkMode = false, editingNode = null;
 
-// ── Theme ──────────────────────────────────────────────────
-
-let darkMode = false;
+// ── Colors ─────────────────────────────────────────────────
 
 function getColors() {
   return darkMode ? {
     bg:       '#12111A',
-    dot:      'rgba(255,255,255,0.04)',
-    edge:     'rgba(255,255,255,0.12)',
-    edgeDash: 'rgba(127,119,221,0.4)',
-    empty:    'rgba(255,255,255,0.15)',
+    dot:      'rgba(255,255,255,0.035)',
+    edge:     'rgba(255,255,255,0.10)',
+    edgeDash: 'rgba(127,119,221,0.38)',
+    empty:    'rgba(255,255,255,0.13)',
   } : {
     bg:       '#FFFFFF',
-    dot:      'rgba(0,0,0,0.05)',
-    edge:     'rgba(0,0,0,0.13)',
-    edgeDash: 'rgba(83,74,183,0.3)',
-    empty:    'rgba(0,0,0,0.18)',
+    dot:      'rgba(0,0,0,0.04)',
+    edge:     'rgba(0,0,0,0.11)',
+    edgeDash: 'rgba(83,74,183,0.28)',
+    empty:    'rgba(0,0,0,0.15)',
   };
 }
 
@@ -61,7 +75,7 @@ document.getElementById('theme-btn').addEventListener('click', () => {
   draw();
 });
 
-// ── Nodes ──────────────────────────────────────────────────
+// ── Nodes & edges ──────────────────────────────────────────
 
 function findNode(label) {
   return nodes.find(n => n.label.toLowerCase() === label.toLowerCase().trim());
@@ -71,11 +85,9 @@ function createNode(label, group, x, y) {
   const id = nextId++;
   const node = {
     id, label: label.trim(), group,
-    x: x !== undefined ? x : W / 2 + (Math.random() - 0.5) * 100,
-    y: y !== undefined ? y : H / 2 + (Math.random() - 0.5) * 100,
-    vx: 0, vy: 0,
-    highlight: false,
-    pulse: 0,
+    x: x !== undefined ? x : W / 2 + (Math.random() - .5) * 100,
+    y: y !== undefined ? y : H / 2 + (Math.random() - .5) * 100,
+    vx: 0, vy: 0, highlight: false, pulse: 0,
   };
   nodes.push(node);
   return node;
@@ -99,43 +111,44 @@ function edgeExists(idA, idB) {
 
 // ── Force simulation ───────────────────────────────────────
 
-const REPULSION = 8000, SPRING_LEN = 130, SPRING_K = 0.05;
-const DAMPING = 0.82, CENTER_K = 0.008;
+const REPULSION = 8000, SPRING_LEN = 130, SPRING_K = 0.05, DAMPING = 0.82, CENTER_K = 0.008;
 let simSteps = 0;
 
 function simulateStep() {
   const n = nodes.length;
   if (!n) return;
   nodes.forEach(nd => { nd.fx = 0; nd.fy = 0; });
+
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       const a = nodes[i], b = nodes[j];
       const dx = b.x - a.x, dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+      const dist = Math.sqrt(dx * dx + dy * dy) || .1;
       const force = REPULSION / (dist * dist);
       const fx = (dx / dist) * force, fy = (dy / dist) * force;
       a.fx -= fx; a.fy -= fy;
       b.fx += fx; b.fy += fy;
     }
   }
+
   edges.forEach(e => {
-    const a = nodes.find(n => n.id === e.from);
-    const b = nodes.find(n => n.id === e.to);
+    const a = nodes.find(n => n.id === e.from), b = nodes.find(n => n.id === e.to);
     if (!a || !b) return;
     const dx = b.x - a.x, dy = b.y - a.y;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+    const dist = Math.sqrt(dx * dx + dy * dy) || .1;
     const force = SPRING_K * (dist - SPRING_LEN);
     const fx = (dx / dist) * force, fy = (dy / dist) * force;
     a.fx += fx; a.fy += fy;
     b.fx -= fx; b.fy -= fy;
   });
+
   nodes.forEach(nd => {
     nd.fx += (W / 2 - nd.x) * CENTER_K;
     nd.fy += (H / 2 - nd.y) * CENTER_K;
   });
+
   nodes.forEach(nd => {
-    if (dragging && dragging.id === nd.id) return;
-    if (nd.fixed) return;
+    if ((dragging && dragging.id === nd.id) || nd.fixed) return;
     nd.vx = (nd.vx + nd.fx) * DAMPING;
     nd.vy = (nd.vy + nd.fy) * DAMPING;
     nd.x = Math.max(36, Math.min(W - 36, nd.x + nd.vx));
@@ -150,7 +163,7 @@ function startSim(steps = 300) {
     if (simSteps > 0 || dragging) {
       simulateStep();
       if (simSteps > 0) simSteps--;
-      nodes.forEach(nd => { if (nd.highlight) nd.pulse = (nd.pulse || 0) + 0.07; });
+      nodes.forEach(nd => { if (nd.highlight) nd.pulse = (nd.pulse || 0) + .07; });
       draw();
       animFrame = requestAnimationFrame(loop);
     } else {
@@ -164,8 +177,7 @@ function startSim(steps = 300) {
 // ── Draw ───────────────────────────────────────────────────
 
 function drawArrow(x1, y1, x2, y2) {
-  const headLen = 11;
-  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const headLen = 11, angle = Math.atan2(y2 - y1, x2 - x1);
   ctx.beginPath();
   ctx.moveTo(x2, y2);
   ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
@@ -177,62 +189,52 @@ function drawArrow(x1, y1, x2, y2) {
 function draw() {
   if (!W || !H) return;
   ctx.clearRect(0, 0, W, H);
-  const C = getColors();
-  const GROUP_COLORS = getGroupColors();
+  const C = getColors(), GC = getGroupColors();
 
+  // Background
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
 
+  // Dot grid
   ctx.fillStyle = C.dot;
   for (let x = 30; x < W; x += 28)
     for (let y = 30; y < H; y += 28) {
-      ctx.beginPath(); ctx.arc(x, y, 1.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, 1.1, 0, Math.PI * 2); ctx.fill();
     }
 
+  // Edges
   edges.forEach(e => {
-    const a = nodes.find(n => n.id === e.from);
-    const b = nodes.find(n => n.id === e.to);
+    const a = nodes.find(n => n.id === e.from), b = nodes.find(n => n.id === e.to);
     if (!a || !b) return;
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dx = b.x - a.x, dy = b.y - a.y, dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 1) return;
     const ux = dx / dist, uy = dy / dist, r = 28;
-    const x1 = a.x + ux * r, y1 = a.y + uy * r;
-    const x2 = b.x - ux * r, y2 = b.y - uy * r;
     ctx.save();
-    ctx.strokeStyle = C.edge;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-    ctx.stroke();
-    if (directedMode) drawArrow(x1, y1, x2, y2);
+    ctx.strokeStyle = C.edge; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(a.x + ux * r, a.y + uy * r); ctx.lineTo(b.x - ux * r, b.y - uy * r); ctx.stroke();
+    if (directedMode) drawArrow(a.x + ux * r, a.y + uy * r, b.x - ux * r, b.y - uy * r);
     ctx.restore();
   });
 
+  // Dashed preview edge for current pair
   const curPair = pairs[pairIdx];
   if (curPair) {
-    const na = nodes.find(n => n.label === curPair[0]);
-    const nb = nodes.find(n => n.label === curPair[1]);
+    const na = nodes.find(n => n.label === curPair[0]), nb = nodes.find(n => n.label === curPair[1]);
     if (na && nb && !edgeExists(na.id, nb.id)) {
-      const dx = nb.x - na.x, dy = nb.y - na.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const dx = nb.x - na.x, dy = nb.y - na.y, dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 1) {
         const ux = dx / dist, uy = dy / dist, r = 28;
         ctx.save();
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = C.edgeDash;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(na.x + ux * r, na.y + uy * r);
-        ctx.lineTo(nb.x - ux * r, nb.y - uy * r);
-        ctx.stroke();
+        ctx.setLineDash([5, 5]); ctx.strokeStyle = C.edgeDash; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(na.x + ux * r, na.y + uy * r); ctx.lineTo(nb.x - ux * r, nb.y - uy * r); ctx.stroke();
         ctx.restore();
       }
     }
   }
 
+  // Nodes
   nodes.forEach(nd => {
-    const c = GROUP_COLORS[nd.group] || GROUP_COLORS.meio;
+    const c = GC[nd.group] || GC.meio;
     const isSel = selected && selected.id === nd.id;
     const r = 28;
     let shape = 'circle';
@@ -246,20 +248,20 @@ function draw() {
         ctx.arc(nd.x, nd.y, r, 0, Math.PI * 2);
       } else if (shape === 'tri-up') {
         const h = r * 1.8;
-        ctx.moveTo(nd.x,           nd.y - h * 0.62);
-        ctx.lineTo(nd.x + r * 1.1, nd.y + h * 0.38);
-        ctx.lineTo(nd.x - r * 1.1, nd.y + h * 0.38);
+        ctx.moveTo(nd.x, nd.y - h * .62);
+        ctx.lineTo(nd.x + r * 1.1, nd.y + h * .38);
+        ctx.lineTo(nd.x - r * 1.1, nd.y + h * .38);
         ctx.closePath();
       } else if (shape === 'tri-down') {
         const h = r * 1.8;
-        ctx.moveTo(nd.x,           nd.y + h * 0.62);
-        ctx.lineTo(nd.x + r * 1.1, nd.y - h * 0.38);
-        ctx.lineTo(nd.x - r * 1.1, nd.y - h * 0.38);
+        ctx.moveTo(nd.x, nd.y + h * .62);
+        ctx.lineTo(nd.x + r * 1.1, nd.y - h * .38);
+        ctx.lineTo(nd.x - r * 1.1, nd.y - h * .38);
         ctx.closePath();
       } else if (shape === 'diamond') {
-        ctx.moveTo(nd.x,           nd.y - r * 1.3);
+        ctx.moveTo(nd.x, nd.y - r * 1.3);
         ctx.lineTo(nd.x + r * 1.1, nd.y);
-        ctx.lineTo(nd.x,           nd.y + r * 1.3);
+        ctx.lineTo(nd.x, nd.y + r * 1.3);
         ctx.lineTo(nd.x - r * 1.1, nd.y);
         ctx.closePath();
       } else if (shape === 'hexagon') {
@@ -273,53 +275,45 @@ function draw() {
       }
     }
 
+    // Pulse ring
     if (nd.highlight) {
       const pulse = Math.sin(nd.pulse || 0);
       ctx.save();
-      ctx.strokeStyle = c.stroke;
-      ctx.globalAlpha = 0.2 + 0.12 * pulse;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = c.stroke; ctx.globalAlpha = .2 + .12 * pulse; ctx.lineWidth = 2;
       ctx.save();
-      ctx.translate(nd.x, nd.y);
-      ctx.scale(1 + 0.18 + 0.08 * pulse, 1 + 0.18 + 0.08 * pulse);
-      ctx.translate(-nd.x, -nd.y);
-      buildPath();
-      ctx.restore();
-      ctx.stroke();
-      ctx.restore();
+      ctx.translate(nd.x, nd.y); ctx.scale(1.18 + .08 * pulse, 1.18 + .08 * pulse); ctx.translate(-nd.x, -nd.y);
+      buildPath(); ctx.restore(); ctx.stroke(); ctx.restore();
     }
 
+    // Node shape
     ctx.save();
-    if (isSel) { ctx.shadowColor = c.stroke; ctx.shadowBlur = 16; }
+    if (isSel) { ctx.shadowColor = c.stroke; ctx.shadowBlur = 14; }
     buildPath();
     ctx.fillStyle = c.fill; ctx.fill();
-    ctx.strokeStyle = c.stroke;
-    ctx.lineWidth = (isSel || nd.highlight) ? 2.5 : 1.5;
-    ctx.stroke();
+    ctx.strokeStyle = c.stroke; ctx.lineWidth = (isSel || nd.highlight) ? 2.5 : 1.5; ctx.stroke();
     ctx.restore();
 
+    // Label
     if (editingNode && editingNode.id === nd.id) return;
     ctx.save();
     ctx.font = '500 11px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = c.text;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = c.text;
     let label = nd.label;
     const maxW = r * 1.8;
     if (ctx.measureText(label).width > maxW) {
-      while (ctx.measureText(label + '…').width > maxW && label.length > 1)
-        label = label.slice(0, -1);
+      while (ctx.measureText(label + '…').width > maxW && label.length > 1) label = label.slice(0, -1);
       label += '…';
     }
     ctx.fillText(label, nd.x, nd.y);
     ctx.restore();
   });
 
+  // Empty state
   if (!nodes.length) {
     ctx.save();
-    ctx.font = '500 13px Inter, sans-serif';
-    ctx.fillStyle = C.empty;
+    ctx.font = '500 13px Inter, sans-serif'; ctx.fillStyle = C.empty;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('Fill in the groups on the right to start →', W / 2, H / 2);
+    ctx.fillText('Fill in the groups on the left to start →', W / 2, H / 2);
     ctx.restore();
   }
 }
@@ -331,8 +325,7 @@ function parseList(str) {
 }
 
 function layoutNodes(nodeList) {
-  const n = nodeList.length;
-  const cx = W / 2, cy = H / 2, rad = Math.min(W, H) * 0.32;
+  const n = nodeList.length, cx = W / 2, cy = H / 2, rad = Math.min(W, H) * .32;
   nodeList.forEach((nd, i) => {
     const angle = (2 * Math.PI * i / n) - Math.PI / 2;
     nd.x = cx + Math.cos(angle) * rad;
@@ -389,15 +382,14 @@ function updatePairUI() {
   const total = pairs.length;
   while (pairIdx < total) {
     const [a, b] = pairs[pairIdx];
-    const na = nodes.find(n => n.label === a);
-    const nb = nodes.find(n => n.label === b);
+    const na = nodes.find(n => n.label === a), nb = nodes.find(n => n.label === b);
     if (na && nb && edgeExists(na.id, nb.id)) { pairIdx++; continue; }
     break;
   }
   nodes.forEach(n => { n.highlight = false; n.pulse = 0; });
 
   if (pairIdx >= total) {
-    document.getElementById('pair-prompt').style.opacity = '0.4';
+    document.getElementById('pair-prompt').style.opacity = '.4';
     document.getElementById('input-meio').disabled = true;
     document.getElementById('confirm-btn').disabled = true;
     document.getElementById('skip-btn').disabled = true;
@@ -409,8 +401,7 @@ function updatePairUI() {
     const newPairs = generatePairs(nodes.map(n => n.label)).filter(([a, b]) => {
       const key = [a, b].sort().join('|||');
       if (seenPairs.has(key)) return false;
-      const na = nodes.find(n => n.label === a);
-      const nb = nodes.find(n => n.label === b);
+      const na = nodes.find(n => n.label === a), nb = nodes.find(n => n.label === b);
       return na && nb && !edgeExists(na.id, nb.id);
     });
     document.getElementById('next-round-btn').style.display = newPairs.length ? 'inline-flex' : 'none';
@@ -432,8 +423,7 @@ function updatePairUI() {
   document.getElementById('done-msg').style.display = 'none';
   document.getElementById('pair-prompt').style.opacity = '1';
 
-  const na = nodes.find(n => n.label === labelA);
-  const nb = nodes.find(n => n.label === labelB);
+  const na = nodes.find(n => n.label === labelA), nb = nodes.find(n => n.label === labelB);
   if (na) na.highlight = true;
   if (nb) nb.highlight = true;
 
@@ -445,14 +435,13 @@ function confirmPair() {
   const meio = document.getElementById('input-meio').value.trim();
   if (!meio) { advancePair(); return; }
   const [labelA, labelB] = pairs[pairIdx];
-  const na = nodes.find(n => n.label === labelA);
-  const nb = nodes.find(n => n.label === labelB);
+  const na = nodes.find(n => n.label === labelA), nb = nodes.find(n => n.label === labelB);
   if (!na || !nb) { advancePair(); return; }
   if (edgeExists(na.id, nb.id)) removeEdge(na.id, nb.id);
   let nm = findNode(meio);
   if (!nm) {
-    const mx = (na.x + nb.x) / 2 + (Math.random() - 0.5) * 30;
-    const my = (na.y + nb.y) / 2 + (Math.random() - 0.5) * 30;
+    const mx = (na.x + nb.x) / 2 + (Math.random() - .5) * 30;
+    const my = (na.y + nb.y) / 2 + (Math.random() - .5) * 30;
     nm = createNode(meio, 'meio', mx, my);
   }
   getOrCreateEdge(na.id, nm.id);
@@ -464,13 +453,13 @@ function advancePair() { pairIdx++; updatePairUI(); startSim(300); }
 
 document.getElementById('confirm-btn').addEventListener('click', confirmPair);
 document.getElementById('skip-btn').addEventListener('click', advancePair);
+
 document.getElementById('next-round-btn').addEventListener('click', () => {
   round++;
   pairs = generatePairs(nodes.map(n => n.label)).filter(([a, b]) => {
     const key = [a, b].sort().join('|||');
     if (seenPairs.has(key)) return false;
-    const na = nodes.find(n => n.label === a);
-    const nb = nodes.find(n => n.label === b);
+    const na = nodes.find(n => n.label === a), nb = nodes.find(n => n.label === b);
     return na && nb && !edgeExists(na.id, nb.id);
   });
   pairIdx = 0;
@@ -491,7 +480,8 @@ document.getElementById('input-meio').addEventListener('keydown', e => {
 // ── Reset ──────────────────────────────────────────────────
 
 function resetAll() {
-  nodes = []; edges = []; selected = null; nextId = 0; pairs = []; pairIdx = 0; round = 1; seenPairs = new Set();
+  nodes = []; edges = []; selected = null; nextId = 0;
+  pairs = []; pairIdx = 0; round = 1; seenPairs = new Set();
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
   document.getElementById('phase1-panel').style.display = 'block';
   document.getElementById('phase2-panel').style.display = 'none';
@@ -500,7 +490,6 @@ function resetAll() {
   document.getElementById('input-rel').value = '';
   draw();
 }
-
 document.getElementById('reset-btn').addEventListener('click', resetAll);
 document.getElementById('reset-btn2').addEventListener('click', resetAll);
 
@@ -554,8 +543,8 @@ document.getElementById('import-file-input').addEventListener('change', e => {
 document.getElementById('save-btn').addEventListener('click', () => {
   localStorage.setItem('mindgraph_session', JSON.stringify({ nodes, edges, directedMode }));
   const btn = document.getElementById('save-btn');
-  btn.textContent = '✓ Saved!';
-  setTimeout(() => btn.textContent = '💾 Save', 1500);
+  btn.innerHTML = '✓';
+  setTimeout(() => btn.innerHTML = '💾', 1500);
 });
 
 document.getElementById('load-btn').addEventListener('click', () => {
@@ -581,7 +570,7 @@ document.getElementById('directed-toggle').addEventListener('change', e => {
   draw();
 });
 
-// ── Edit label ─────────────────────────────────────────────
+// ── Edit label (double-click) ──────────────────────────────
 
 function startEditNode(nd) {
   editingNode = nd;
@@ -590,18 +579,19 @@ function startEditNode(nd) {
   input.type = 'text';
   input.value = nd.label;
   input.style.cssText = `
-    position:fixed;
-    left:${rect.left + nd.x * (rect.width / W) - 50}px;
-    top:${rect.top + nd.y * (rect.height / H) - 14}px;
-    width:100px; height:28px;
-    text-align:center; font-size:12px; font-family:Inter,sans-serif;
-    border:2px solid #534AB7; border-radius:8px;
-    padding:0 6px; z-index:9999; outline:none;
-    background:${darkMode ? '#1E1C2B' : '#fff'};
-    color:${darkMode ? '#EDEAF8' : '#1A1829'};
+    position: fixed;
+    left: ${rect.left + nd.x * (rect.width / W) - 50}px;
+    top:  ${rect.top  + nd.y * (rect.height / H) - 14}px;
+    width: 100px; height: 28px;
+    text-align: center; font-size: 12px; font-family: Inter, sans-serif;
+    border: 2px solid #534AB7; border-radius: 8px;
+    padding: 0 6px; z-index: 9999; outline: none;
+    background: ${darkMode ? '#1E1C2B' : '#fff'};
+    color:      ${darkMode ? '#EDEAF8' : '#1A1829'};
   `;
   document.body.appendChild(input);
   input.focus(); input.select();
+
   function finish() {
     const val = input.value.trim();
     if (val) nd.label = val;
@@ -609,6 +599,7 @@ function startEditNode(nd) {
     document.body.removeChild(input);
     draw();
   }
+
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') finish();
     if (e.key === 'Escape') { editingNode = null; document.body.removeChild(input); draw(); }
@@ -616,7 +607,7 @@ function startEditNode(nd) {
   input.addEventListener('blur', finish);
 }
 
-// ── Mouse ──────────────────────────────────────────────────
+// ── Hit test ───────────────────────────────────────────────
 
 function nodeAt(x, y) {
   return nodes.slice().reverse().find(nd => {
@@ -635,6 +626,8 @@ function getPos(e) {
   };
 }
 
+// ── Mouse events ───────────────────────────────────────────
+
 let lastClick = 0;
 
 canvas.addEventListener('mousedown', e => {
@@ -642,12 +635,7 @@ canvas.addEventListener('mousedown', e => {
   if (node && now - lastClick < 300) { startEditNode(node); lastClick = 0; return; }
   lastClick = now;
   selected = node || null;
-  if (node) {
-    dragging = node;
-    dragOff = { x: p.x - node.x, y: p.y - node.y };
-    canvas.style.cursor = 'grabbing';
-    startSim();
-  }
+  if (node) { dragging = node; dragOff = { x: p.x - node.x, y: p.y - node.y }; canvas.style.cursor = 'grabbing'; startSim(); }
   draw();
 });
 
@@ -663,12 +651,37 @@ canvas.addEventListener('mousemove', e => {
 
 canvas.addEventListener('mouseup', () => {
   if (dragging) { dragging.vx = 0; dragging.vy = 0; }
-  dragging = null;
-  canvas.style.cursor = 'default';
-  startSim();
+  dragging = null; canvas.style.cursor = 'default'; startSim();
 });
 
 canvas.addEventListener('mouseleave', () => { dragging = null; });
+
+// ── Touch events ───────────────────────────────────────────
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0], rect = canvas.getBoundingClientRect();
+  const p = { x: (t.clientX - rect.left) * (W / rect.width), y: (t.clientY - rect.top) * (H / rect.height) };
+  const node = nodeAt(p.x, p.y);
+  selected = node || null;
+  if (node) { dragging = node; dragOff = { x: p.x - node.x, y: p.y - node.y }; startSim(); }
+  draw();
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0], rect = canvas.getBoundingClientRect();
+  const p = { x: (t.clientX - rect.left) * (W / rect.width), y: (t.clientY - rect.top) * (H / rect.height) };
+  if (dragging) {
+    dragging.x = Math.max(30, Math.min(W - 30, p.x - dragOff.x));
+    dragging.y = Math.max(30, Math.min(H - 30, p.y - dragOff.y));
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => {
+  if (dragging) { dragging.vx = 0; dragging.vy = 0; }
+  dragging = null; startSim();
+});
 
 // ── Keyboard ───────────────────────────────────────────────
 
