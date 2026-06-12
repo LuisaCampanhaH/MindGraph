@@ -6,6 +6,8 @@ canvas.width = W; canvas.height = H;
 let nodes = [], edges = [], selected = null, dragging = null;
 let dragOff = { x: 0, y: 0 }, nextId = 0, animFrame = null;
 let pairs = [], pairIdx = 0, round = 1, seenPairs = new Set();
+let directedMode = false;
+let editingNode = null;
 
 const GROUP_COLORS = {
   teto:        { fill: '#FAECE7', stroke: '#993C1D', text: '#4A1B0C' },
@@ -36,7 +38,7 @@ function createNode(label, group, x, y) {
 
 function getOrCreateEdge(idA, idB) {
   const exists = edges.find(e =>
-    (e.from === idA && e.to === idB) || (e.from === idB && e.to === idA));
+    (e.from === idA && e.to === idB) || (!directedMode && e.from === idB && e.to === idA));
   if (!exists) edges.push({ from: idA, to: idB });
 }
 
@@ -47,7 +49,7 @@ function removeEdge(idA, idB) {
 
 function edgeExists(idA, idB) {
   return edges.some(e =>
-    (e.from === idA && e.to === idB) || (e.from === idB && e.to === idA));
+    (e.from === idA && e.to === idB) || (!directedMode && e.from === idB && e.to === idA));
 }
 
 // ── Simulação de forças ───────────────────────────────────
@@ -121,6 +123,17 @@ function startSim(steps = 300) {
 
 // ── Desenhar ─────────────────────────────────────────────
 
+function drawArrow(x1, y1, x2, y2) {
+  const headLen = 12;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+  ctx.stroke();
+}
+
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
@@ -140,17 +153,20 @@ function draw() {
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 1) return;
     const ux = dx / dist, uy = dy / dist, r = 28;
+    const x1 = a.x + ux * r, y1 = a.y + uy * r;
+    const x2 = b.x - ux * r, y2 = b.y - uy * r;
     ctx.save();
     ctx.strokeStyle = 'rgba(0,0,0,0.15)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(a.x + ux * r, a.y + uy * r);
-    ctx.lineTo(b.x - ux * r, b.y - uy * r);
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
     ctx.stroke();
+    if (directedMode) drawArrow(x1, y1, x2, y2);
     ctx.restore();
   });
 
-  // linha tracejada entre o par atual (se ainda não conectados)
+  // linha tracejada entre o par atual
   const curPair = pairs[pairIdx];
   if (curPair) {
     const na = nodes.find(n => n.label === curPair[0]);
@@ -179,7 +195,6 @@ function draw() {
     const isSel = selected && selected.id === nd.id;
     const r = 28;
 
-    // determina forma
     let shape = 'circle';
     if (nd.group === 'teto') shape = 'tri-up';
     else if (nd.group === 'piso') shape = 'tri-down';
@@ -191,20 +206,20 @@ function draw() {
         ctx.arc(nd.x, nd.y, r, 0, Math.PI * 2);
       } else if (shape === 'tri-up') {
         const h = r * 1.8;
-        ctx.moveTo(nd.x,         nd.y - h * 0.62);
+        ctx.moveTo(nd.x,           nd.y - h * 0.62);
         ctx.lineTo(nd.x + r * 1.1, nd.y + h * 0.38);
         ctx.lineTo(nd.x - r * 1.1, nd.y + h * 0.38);
         ctx.closePath();
       } else if (shape === 'tri-down') {
         const h = r * 1.8;
-        ctx.moveTo(nd.x,         nd.y + h * 0.62);
+        ctx.moveTo(nd.x,           nd.y + h * 0.62);
         ctx.lineTo(nd.x + r * 1.1, nd.y - h * 0.38);
         ctx.lineTo(nd.x - r * 1.1, nd.y - h * 0.38);
         ctx.closePath();
       } else if (shape === 'diamond') {
-        ctx.moveTo(nd.x,      nd.y - r * 1.3);
+        ctx.moveTo(nd.x,           nd.y - r * 1.3);
         ctx.lineTo(nd.x + r * 1.1, nd.y);
-        ctx.lineTo(nd.x,      nd.y + r * 1.3);
+        ctx.lineTo(nd.x,           nd.y + r * 1.3);
         ctx.lineTo(nd.x - r * 1.1, nd.y);
         ctx.closePath();
       } else if (shape === 'hexagon') {
@@ -218,14 +233,12 @@ function draw() {
       }
     }
 
-    // pulso de destaque
     if (nd.highlight) {
       const pulse = Math.sin(nd.pulse || 0);
       ctx.save();
       ctx.strokeStyle = c.stroke;
       ctx.globalAlpha = 0.22 + 0.13 * pulse;
       ctx.lineWidth = 2;
-      // anel externo: escala o path levemente
       ctx.save();
       ctx.translate(nd.x, nd.y);
       const sc = 1 + (0.18 + 0.08 * pulse);
@@ -237,7 +250,6 @@ function draw() {
       ctx.restore();
     }
 
-    // forma principal
     ctx.save();
     if (isSel) { ctx.shadowColor = c.stroke; ctx.shadowBlur = 14; }
     buildPath();
@@ -248,7 +260,8 @@ function draw() {
     ctx.stroke();
     ctx.restore();
 
-    // label
+    // label (skip if editing this node)
+    if (editingNode && editingNode.id === nd.id) return;
     ctx.save();
     ctx.font = '500 12px sans-serif';
     ctx.textAlign = 'center';
@@ -321,7 +334,7 @@ document.getElementById('start-btn').addEventListener('click', () => {
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
 
   const allLabels = [];
-  tetos.forEach(l => { const n = createNode(l, 'teto');        n.fixed = true; allLabels.push(l); });
+  tetos.forEach(l  => { const n = createNode(l, 'teto');        n.fixed = true; allLabels.push(l); });
   pisos.forEach(l  => { const n = createNode(l, 'piso');        n.fixed = true; allLabels.push(l); });
   rels.forEach((l, i) => { const n = createNode(l, 'relacionado'); n.fixed = true; n.relIdx = i; allLabels.push(l); });
 
@@ -340,7 +353,6 @@ document.getElementById('start-btn').addEventListener('click', () => {
 function updatePairUI() {
   const total = pairs.length;
 
-  // pula pares já conectados diretamente
   while (pairIdx < total) {
     const [a, b] = pairs[pairIdx];
     const na = nodes.find(n => n.label === a);
@@ -361,7 +373,6 @@ function updatePairUI() {
     document.getElementById('pair-counter').textContent = 'Rodada ' + round + ' concluída!';
     document.getElementById('progress-bar').style.width = '100%';
 
-    // verifica se existem pares novos para a próxima rodada
     const newPairs = generatePairs(nodes.map(n => n.label))
       .filter(([a, b]) => {
         const key = [a, b].sort().join('|||');
@@ -433,7 +444,6 @@ document.getElementById('confirm-btn').addEventListener('click', confirmPair);
 document.getElementById('skip-btn').addEventListener('click', advancePair);
 document.getElementById('next-round-btn').addEventListener('click', () => {
   round++;
-  // gera todos os pares possíveis entre os nós atuais, filtra os já conectados
   pairs = generatePairs(nodes.map(n => n.label))
     .filter(([a, b]) => {
       const key = [a, b].sort().join('|||');
@@ -474,20 +484,139 @@ function resetAll() {
 document.getElementById('reset-btn').addEventListener('click', resetAll);
 document.getElementById('reset-btn2').addEventListener('click', resetAll);
 
+// ── Export PNG ────────────────────────────────────────────
+
+document.getElementById('export-png-btn').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = 'mindgraph.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+});
+
+// ── Export / Import JSON ──────────────────────────────────
+
+document.getElementById('export-json-btn').addEventListener('click', () => {
+  const data = JSON.stringify({ nodes, edges, directedMode }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.download = 'mindgraph.json';
+  link.href = URL.createObjectURL(blob);
+  link.click();
+});
+
+document.getElementById('import-json-btn').addEventListener('click', () => {
+  document.getElementById('import-file-input').click();
+});
+
+document.getElementById('import-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      nodes = data.nodes || [];
+      edges = data.edges || [];
+      directedMode = data.directedMode || false;
+      nextId = nodes.length ? Math.max(...nodes.map(n => n.id)) + 1 : 0;
+      document.getElementById('directed-toggle').checked = directedMode;
+      document.getElementById('phase1-panel').style.display = 'none';
+      document.getElementById('phase2-panel').style.display = 'none';
+      startSim(300);
+    } catch {
+      alert('Invalid JSON file.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// ── Save / Load Session (localStorage) ───────────────────
+
+document.getElementById('save-btn').addEventListener('click', () => {
+  localStorage.setItem('mindgraph_session', JSON.stringify({ nodes, edges, directedMode }));
+  const btn = document.getElementById('save-btn');
+  btn.textContent = '✓ Saved';
+  setTimeout(() => btn.textContent = 'Save session', 1500);
+});
+
+document.getElementById('load-btn').addEventListener('click', () => {
+  const raw = localStorage.getItem('mindgraph_session');
+  if (!raw) { alert('No saved session found.'); return; }
+  try {
+    const data = JSON.parse(raw);
+    nodes = data.nodes || [];
+    edges = data.edges || [];
+    directedMode = data.directedMode || false;
+    nextId = nodes.length ? Math.max(...nodes.map(n => n.id)) + 1 : 0;
+    document.getElementById('directed-toggle').checked = directedMode;
+    document.getElementById('phase1-panel').style.display = 'none';
+    document.getElementById('phase2-panel').style.display = 'none';
+    startSim(300);
+  } catch {
+    alert('Failed to load session.');
+  }
+});
+
+// ── Directed mode toggle ──────────────────────────────────
+
+document.getElementById('directed-toggle').addEventListener('change', e => {
+  directedMode = e.target.checked;
+  draw();
+});
+
+// ── Edit node label (double-click) ────────────────────────
+
+function startEditNode(nd) {
+  editingNode = nd;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = rect.width / W;
+  const scaleY = rect.height / H;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = nd.label;
+  input.style.position = 'fixed';
+  input.style.left  = (rect.left + nd.x * scaleX - 50) + 'px';
+  input.style.top   = (rect.top  + nd.y * scaleY - 14) + 'px';
+  input.style.width = '100px';
+  input.style.height = '28px';
+  input.style.textAlign = 'center';
+  input.style.fontSize = '13px';
+  input.style.border = '2px solid #534AB7';
+  input.style.borderRadius = '8px';
+  input.style.padding = '0 6px';
+  input.style.zIndex = '9999';
+  input.style.outline = 'none';
+  document.body.appendChild(input);
+  input.focus();
+  input.select();
+
+  function finish() {
+    const val = input.value.trim();
+    if (val) nd.label = val;
+    editingNode = null;
+    document.body.removeChild(input);
+    draw();
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') finish();
+    if (e.key === 'Escape') { editingNode = null; document.body.removeChild(input); draw(); }
+  });
+  input.addEventListener('blur', finish);
+}
+
 // ── Mouse ─────────────────────────────────────────────────
 
 function nodeAt(x, y) {
   return nodes.slice().reverse().find(nd => {
     const dx = x - nd.x, dy = y - nd.y;
     const r = 28;
-    if (nd.group === 'teto' || nd.group === 'piso') {
-      // bounding box do triângulo
+    if (nd.group === 'teto' || nd.group === 'piso')
       return Math.abs(dx) <= r * 1.1 && Math.abs(dy) <= r * 1.1;
-    }
-    if (nd.group === 'relacionado') {
-      // bounding box do hexágono ou diamante
+    if (nd.group === 'relacionado')
       return Math.abs(dx) <= r * 1.1 && Math.abs(dy) <= r * 1.3;
-    }
     return Math.hypot(dx, dy) <= r;
   });
 }
@@ -500,8 +629,20 @@ function getPos(e) {
   };
 }
 
+let lastClick = 0;
+
 canvas.addEventListener('mousedown', e => {
   const p = getPos(e), node = nodeAt(p.x, p.y);
+  const now = Date.now();
+
+  // double-click to edit
+  if (node && now - lastClick < 300) {
+    startEditNode(node);
+    lastClick = 0;
+    return;
+  }
+  lastClick = now;
+
   selected = node || null;
   if (node) {
     dragging = node;
