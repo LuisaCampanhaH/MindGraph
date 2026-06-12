@@ -2,46 +2,138 @@
 <html lang="pt-BR" data-theme="light">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MindGraph</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="sidebar-open">
 <div id="app">
 
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <div class="toolbar-brand">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
       <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
         <circle cx="9" cy="4" r="2.5" fill="currentColor"/>
-        <circle cx="3" cy="14" r="2.5" fill="currentColor" opacity="0.7"/>
-        <circle cx="15" cy="14" r="2.5" fill="currentColor" opacity="0.7"/>
-        <line x1="9" y1="6.5" x2="3.8" y2="11.8" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
-        <line x1="9" y1="6.5" x2="14.2" y2="11.8" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
-        <line x1="5.5" y1="14" x2="12.5" y2="14" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+        <circle cx="3" cy="14" r="2.5" fill="currentColor" opacity=".7"/>
+        <circle cx="15" cy="14" r="2.5" fill="currentColor" opacity=".7"/>
+        <line x1="9" y1="6.5" x2="3.8" y2="11.8" stroke="currentColor" stroke-width="1.5" opacity=".5"/>
+        <line x1="9" y1="6.5" x2="14.2" y2="11.8" stroke="currentColor" stroke-width="1.5" opacity=".5"/>
+        <line x1="5.5" y1="14" x2="12.5" y2="14" stroke="currentColor" stroke-width="1.5" opacity=".5"/>
       </svg>
       MindGraph
     </div>
-    <div class="tb-sep"></div>
+    <div class="sep"></div>
     <label class="toggle-wrap">
-      <input type="checkbox" id="directed-toggle" /> Directed
+      <input type="checkbox" id="directed-toggle" />
+      <span class="lbl-hide">Directed</span>
     </label>
-    <div class="toolbar-right">
-      <button class="tb-btn" id="save-btn">💾 Save</button>
-      <button class="tb-btn" id="load-btn">📂 Load</button>
-      <button class="tb-btn" id="export-json-btn">⬇ JSON</button>
-      <button class="tb-btn" id="import-json-btn">⬆ Import</button>
-      <button class="tb-btn" id="export-png-btn">🖼 PNG</button>
-      <div class="tb-sep"></div>
-      <button class="theme-btn" id="theme-btn" title="Toggle dark mode">🌙</button>
+    <div class="topbar-right">
+      <button class="ico-btn" id="save-btn">💾 <span class="lbl-hide">Save</span></button>
+      <button class="ico-btn" id="load-btn">📂 <span class="lbl-hide">Load</span></button>
+      <button class="ico-btn" id="export-json-btn">⬇ JSON</button>
+      <button class="ico-btn" id="import-json-btn">⬆ Import</button>
+      <button class="ico-btn" id="export-png-btn">🖼 PNG</button>
+      <div class="sep"></div>
+      <button class="ico-btn icon-only" id="theme-btn" title="Toggle dark mode">🌙</button>
     </div>
     <input type="file" id="import-file-input" accept=".json" style="display:none" />
   </div>
 
-  <!-- Split: canvas left, sidebar right -->
-  <div class="split">
+  <!-- Main -->
+  <div class="main">
 
-    <!-- Canvas -->
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div class="sidebar-inner">
+
+        <!-- Phase 1 -->
+        <div class="card" id="phase1-panel">
+          <div class="card-title">Phase 1 — Groups</div>
+          <div class="field">
+            <label>Ceiling <span>(comma-separated)</span></label>
+            <input type="text" id="input-teto" placeholder="e.g. diabetes, insulin" />
+          </div>
+          <div class="field">
+            <label>Floor <span>(comma-separated)</span></label>
+            <input type="text" id="input-piso" placeholder="e.g. sugar, glucose" />
+          </div>
+          <div class="field">
+            <label>Related <span>(optional)</span></label>
+            <input type="text" id="input-rel" placeholder="e.g. diet, exercise" />
+          </div>
+          <div class="row">
+            <button class="btn btn-primary" id="start-btn">Generate graph →</button>
+          </div>
+          <div class="row" style="margin-top:5px">
+            <button class="btn btn-danger" id="reset-btn">Clear all</button>
+          </div>
+        </div>
+
+        <!-- Phase 2 -->
+        <div class="card" id="phase2-panel">
+          <div class="card-title">Phase 2 — Connections</div>
+          <div id="pair-status">
+            <span id="pair-counter">Pair 1 of 6</span>
+            <div id="progress-bar-wrap"><div id="progress-bar" style="width:0%"></div></div>
+          </div>
+          <div id="pair-prompt">
+            <span class="pair-node" id="node-a-label">A</span>
+            <span class="pair-arrow">↔</span>
+            <span class="pair-node" id="node-b-label">B</span>
+          </div>
+          <div class="field">
+            <input type="text" id="input-meio" placeholder="Connecting concept (Enter)" />
+          </div>
+          <div class="row">
+            <button class="btn btn-primary" id="confirm-btn" style="flex:1;width:auto">✓ Confirm</button>
+            <button class="btn btn-ghost" id="skip-btn">Skip →</button>
+          </div>
+          <div class="row" style="margin-top:3px">
+            <button class="btn btn-ghost" id="reset-btn2">← Restart</button>
+          </div>
+          <div id="done-msg">
+            <span class="done-text">✓ Round <span id="round-num">1</span> done!</span>
+            <button class="btn btn-success" id="next-round-btn">Next round →</button>
+            <span id="no-pairs-msg" style="display:none;font-size:11px;color:var(--text3)">Graph complete!</span>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="card">
+          <div class="card-title">Legend</div>
+          <div class="legend">
+            <div class="legend-item">
+              <svg width="18" height="14"><polygon points="9,1 17,13 1,13" fill="#FAECE7" stroke="#993C1D" stroke-width="1.5"/></svg>
+              Ceiling
+            </div>
+            <div class="legend-item">
+              <svg width="18" height="14"><polygon points="9,13 17,1 1,1" fill="#E6F1FB" stroke="#185FA5" stroke-width="1.5"/></svg>
+              Floor
+            </div>
+            <div class="legend-item">
+              <svg width="18" height="16"><polygon points="9,1 17,5 17,11 9,15 1,11 1,5" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1.5"/></svg>
+              Related
+            </div>
+            <div class="legend-item">
+              <svg width="16" height="16"><circle cx="8" cy="8" r="6" fill="#EEEDFE" stroke="#534AB7" stroke-width="1.5"/></svg>
+              Connector
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Sidebar toggle handle -->
+    <button id="sidebar-toggle" aria-label="Toggle sidebar">
+      <svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <polyline points="6,1 1,6 6,11"/>
+      </svg>
+    </button>
+
+    <!-- Canvas area -->
     <div id="canvas-area">
       <div id="canvas-wrap">
         <canvas id="graph-canvas"></canvas>
@@ -49,87 +141,7 @@
       <div id="hint">💡 Drag to move · Click to select · Double-click to rename · Delete removes selected</div>
     </div>
 
-    <!-- Sidebar -->
-    <div id="sidebar">
-
-      <!-- Phase 1 -->
-      <div class="card" id="phase1-panel">
-        <div class="card-title">Phase 1 — Groups</div>
-        <div class="field">
-          <label>Ceiling <span>(comma-separated)</span></label>
-          <input type="text" id="input-teto" placeholder="e.g. diabetes, insulin" />
-        </div>
-        <div class="field">
-          <label>Floor <span>(comma-separated)</span></label>
-          <input type="text" id="input-piso" placeholder="e.g. sugar, glucose" />
-        </div>
-        <div class="field">
-          <label>Related <span>(optional)</span></label>
-          <input type="text" id="input-rel" placeholder="e.g. diet, exercise" />
-        </div>
-        <div class="row">
-          <button class="btn btn-primary" id="start-btn">Generate graph →</button>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <button class="btn btn-danger" id="reset-btn">Clear all</button>
-        </div>
-      </div>
-
-      <!-- Phase 2 -->
-      <div class="card" id="phase2-panel">
-        <div class="card-title">Phase 2 — Connections</div>
-        <div id="pair-status">
-          <span id="pair-counter">Pair 1 of 6</span>
-          <div id="progress-bar-wrap"><div id="progress-bar" style="width:0%"></div></div>
-        </div>
-        <div id="pair-prompt">
-          <span class="pair-node" id="node-a-label">A</span>
-          <span class="pair-arrow">↔</span>
-          <span class="pair-node" id="node-b-label">B</span>
-        </div>
-        <div class="field">
-          <input type="text" id="input-meio" placeholder="Connecting concept (Enter)" />
-        </div>
-        <div class="row">
-          <button class="btn btn-primary" id="confirm-btn" style="flex:1;width:auto">✓ Confirm</button>
-          <button class="btn btn-ghost" id="skip-btn">Skip →</button>
-        </div>
-        <div class="row" style="margin-top:4px">
-          <button class="btn btn-ghost" id="reset-btn2">← Restart</button>
-        </div>
-        <div id="done-msg">
-          <span class="done-text">✓ Round <span id="round-num">1</span> done!</span>
-          <button class="btn btn-success" id="next-round-btn">Next round →</button>
-          <span id="no-pairs-msg" style="display:none;font-size:11px;color:var(--text3)">Graph complete!</span>
-        </div>
-      </div>
-
-      <!-- Legend -->
-      <div class="card">
-        <div class="card-title">Legend</div>
-        <div class="legend">
-          <div class="legend-item">
-            <svg width="18" height="14"><polygon points="9,1 17,13 1,13" fill="#FAECE7" stroke="#993C1D" stroke-width="1.5"/></svg>
-            Ceiling
-          </div>
-          <div class="legend-item">
-            <svg width="18" height="14"><polygon points="9,13 17,1 1,1" fill="#E6F1FB" stroke="#185FA5" stroke-width="1.5"/></svg>
-            Floor
-          </div>
-          <div class="legend-item">
-            <svg width="18" height="16"><polygon points="9,1 17,5 17,11 9,15 1,11 1,5" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1.5"/></svg>
-            Related
-          </div>
-          <div class="legend-item">
-            <svg width="16" height="16"><circle cx="8" cy="8" r="6" fill="#EEEDFE" stroke="#534AB7" stroke-width="1.5"/></svg>
-            Connector
-          </div>
-        </div>
-      </div>
-
-    </div>
   </div>
-
 </div>
 <script src="script.js"></script>
 </body>
