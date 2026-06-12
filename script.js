@@ -1,7 +1,19 @@
 const canvas = document.getElementById('graph-canvas');
 const ctx = canvas.getContext('2d');
-const W = 640, H = 420;
-canvas.width = W; canvas.height = H;
+let W, H;
+
+function resizeCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  W = wrap.clientWidth;
+  H = wrap.clientHeight;
+  canvas.width = W;
+  canvas.height = H;
+  draw();
+}
+
+window.addEventListener('resize', resizeCanvas);
+// Initial size after layout renders
+requestAnimationFrame(() => { resizeCanvas(); startSim(50); });
 
 let nodes = [], edges = [], selected = null, dragging = null;
 let dragOff = { x: 0, y: 0 }, nextId = 0, animFrame = null;
@@ -9,14 +21,48 @@ let pairs = [], pairIdx = 0, round = 1, seenPairs = new Set();
 let directedMode = false;
 let editingNode = null;
 
-const GROUP_COLORS = {
-  teto:        { fill: '#FAECE7', stroke: '#993C1D', text: '#4A1B0C' },
-  piso:        { fill: '#E6F1FB', stroke: '#185FA5', text: '#0C447C' },
-  relacionado: { fill: '#E1F5EE', stroke: '#0F6E56', text: '#085041' },
-  meio:        { fill: '#EEEDFE', stroke: '#534AB7', text: '#3C3489' },
-};
+// ── Theme ──────────────────────────────────────────────────
 
-// ── Nós ──────────────────────────────────────────────────
+let darkMode = false;
+
+function getColors() {
+  return darkMode ? {
+    bg:           '#12111A',
+    dot:          'rgba(255,255,255,0.04)',
+    edge:         'rgba(255,255,255,0.12)',
+    edgeDash:     'rgba(127,119,221,0.4)',
+    empty:        'rgba(255,255,255,0.15)',
+  } : {
+    bg:           '#FFFFFF',
+    dot:          'rgba(0,0,0,0.05)',
+    edge:         'rgba(0,0,0,0.13)',
+    edgeDash:     'rgba(83,74,183,0.3)',
+    empty:        'rgba(0,0,0,0.18)',
+  };
+}
+
+function getGroupColors() {
+  return darkMode ? {
+    teto:        { fill: '#3A1E18', stroke: '#D4724F', text: '#FACDB9' },
+    piso:        { fill: '#152038', stroke: '#4E90D4', text: '#A8CBF0' },
+    relacionado: { fill: '#0D2A20', stroke: '#2CB890', text: '#8DEDD2' },
+    meio:        { fill: '#1E1B3A', stroke: '#7F77DD', text: '#C5C1F8' },
+  } : {
+    teto:        { fill: '#FAECE7', stroke: '#993C1D', text: '#4A1B0C' },
+    piso:        { fill: '#E6F1FB', stroke: '#185FA5', text: '#0C447C' },
+    relacionado: { fill: '#E1F5EE', stroke: '#0F6E56', text: '#085041' },
+    meio:        { fill: '#EEEDFE', stroke: '#534AB7', text: '#3C3489' },
+  };
+}
+
+document.getElementById('theme-btn').addEventListener('click', () => {
+  darkMode = !darkMode;
+  document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+  document.getElementById('theme-btn').textContent = darkMode ? '☀️' : '🌙';
+  draw();
+});
+
+// ── Nodes ──────────────────────────────────────────────────
 
 function findNode(label) {
   return nodes.find(n => n.label.toLowerCase() === label.toLowerCase().trim());
@@ -52,7 +98,7 @@ function edgeExists(idA, idB) {
     (e.from === idA && e.to === idB) || (!directedMode && e.from === idB && e.to === idA));
 }
 
-// ── Simulação de forças ───────────────────────────────────
+// ── Force simulation ───────────────────────────────────────
 
 const REPULSION = 8000, SPRING_LEN = 130, SPRING_K = 0.05;
 const DAMPING = 0.82, CENTER_K = 0.008;
@@ -121,10 +167,10 @@ function startSim(steps = 300) {
   animFrame = requestAnimationFrame(loop);
 }
 
-// ── Desenhar ─────────────────────────────────────────────
+// ── Draw ───────────────────────────────────────────────────
 
 function drawArrow(x1, y1, x2, y2) {
-  const headLen = 12;
+  const headLen = 11;
   const angle = Math.atan2(y2 - y1, x2 - x1);
   ctx.beginPath();
   ctx.moveTo(x2, y2);
@@ -135,16 +181,23 @@ function drawArrow(x1, y1, x2, y2) {
 }
 
 function draw() {
+  if (!W || !H) return;
   ctx.clearRect(0, 0, W, H);
+  const C = getColors();
+  const GROUP_COLORS = getGroupColors();
 
-  // grid de pontos
-  ctx.fillStyle = 'rgba(0,0,0,0.05)';
-  for (let x = 30; x < W; x += 30)
-    for (let y = 30; y < H; y += 30) {
-      ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI * 2); ctx.fill();
+  // Background
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Dot grid
+  ctx.fillStyle = C.dot;
+  for (let x = 30; x < W; x += 28)
+    for (let y = 30; y < H; y += 28) {
+      ctx.beginPath(); ctx.arc(x, y, 1.2, 0, Math.PI * 2); ctx.fill();
     }
 
-  // arestas
+  // Edges
   edges.forEach(e => {
     const a = nodes.find(n => n.id === e.from);
     const b = nodes.find(n => n.id === e.to);
@@ -156,7 +209,7 @@ function draw() {
     const x1 = a.x + ux * r, y1 = a.y + uy * r;
     const x2 = b.x - ux * r, y2 = b.y - uy * r;
     ctx.save();
-    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.strokeStyle = C.edge;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
@@ -166,7 +219,7 @@ function draw() {
     ctx.restore();
   });
 
-  // linha tracejada entre o par atual
+  // Dashed preview line for current pair
   const curPair = pairs[pairIdx];
   if (curPair) {
     const na = nodes.find(n => n.label === curPair[0]);
@@ -178,7 +231,7 @@ function draw() {
         const ux = dx / dist, uy = dy / dist, r = 28;
         ctx.save();
         ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(83,74,183,0.35)';
+        ctx.strokeStyle = C.edgeDash;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(na.x + ux * r, na.y + uy * r);
@@ -189,7 +242,7 @@ function draw() {
     }
   }
 
-  // nós
+  // Nodes
   nodes.forEach(nd => {
     const c = GROUP_COLORS[nd.group] || GROUP_COLORS.meio;
     const isSel = selected && selected.id === nd.id;
@@ -237,7 +290,7 @@ function draw() {
       const pulse = Math.sin(nd.pulse || 0);
       ctx.save();
       ctx.strokeStyle = c.stroke;
-      ctx.globalAlpha = 0.22 + 0.13 * pulse;
+      ctx.globalAlpha = 0.2 + 0.12 * pulse;
       ctx.lineWidth = 2;
       ctx.save();
       ctx.translate(nd.x, nd.y);
@@ -251,19 +304,18 @@ function draw() {
     }
 
     ctx.save();
-    if (isSel) { ctx.shadowColor = c.stroke; ctx.shadowBlur = 14; }
+    if (isSel) { ctx.shadowColor = c.stroke; ctx.shadowBlur = 16; }
     buildPath();
     ctx.fillStyle = c.fill;
     ctx.fill();
     ctx.strokeStyle = c.stroke;
-    ctx.lineWidth = (isSel || nd.highlight) ? 2.5 : 1.2;
+    ctx.lineWidth = (isSel || nd.highlight) ? 2.5 : 1.5;
     ctx.stroke();
     ctx.restore();
 
-    // label (skip if editing this node)
     if (editingNode && editingNode.id === nd.id) return;
     ctx.save();
-    ctx.font = '500 12px sans-serif';
+    ctx.font = '500 11px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = c.text;
@@ -280,16 +332,16 @@ function draw() {
 
   if (!nodes.length) {
     ctx.save();
-    ctx.font = '14px sans-serif';
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.font = '500 13px Inter, sans-serif';
+    ctx.fillStyle = C.empty;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('Preencha os grupos acima para começar', W / 2, H / 2);
+    ctx.fillText('Fill in the groups to generate the graph →', W / 2, H / 2);
     ctx.restore();
   }
 }
 
-// ── Fase 1 ────────────────────────────────────────────────
+// ── Phase 1 ────────────────────────────────────────────────
 
 function parseList(str) {
   return str.split(',').map(s => s.trim()).filter(Boolean);
@@ -323,7 +375,7 @@ document.getElementById('start-btn').addEventListener('click', () => {
     ['input-teto', 'input-piso'].forEach(id => {
       const el = document.getElementById(id);
       if (!parseList(el.value).length) {
-        el.style.borderColor = '#E24B4A';
+        el.style.borderColor = 'var(--danger)';
         setTimeout(() => el.style.borderColor = '', 1200);
       }
     });
@@ -348,7 +400,7 @@ document.getElementById('start-btn').addEventListener('click', () => {
   startSim(400);
 });
 
-// ── Fase 2 ────────────────────────────────────────────────
+// ── Phase 2 ────────────────────────────────────────────────
 
 function updatePairUI() {
   const total = pairs.length;
@@ -370,7 +422,7 @@ function updatePairUI() {
     document.getElementById('skip-btn').disabled = true;
     document.getElementById('done-msg').style.display = 'flex';
     document.getElementById('round-num').textContent = round;
-    document.getElementById('pair-counter').textContent = 'Rodada ' + round + ' concluída!';
+    document.getElementById('pair-counter').textContent = 'Round ' + round + ' done!';
     document.getElementById('progress-bar').style.width = '100%';
 
     const newPairs = generatePairs(nodes.map(n => n.label))
@@ -393,7 +445,7 @@ function updatePairUI() {
   seenPairs.add([labelA, labelB].sort().join('|||'));
   document.getElementById('node-a-label').textContent = labelA;
   document.getElementById('node-b-label').textContent = labelB;
-  document.getElementById('pair-counter').textContent = `Par ${pairIdx + 1} de ${total}`;
+  document.getElementById('pair-counter').textContent = `Pair ${pairIdx + 1} of ${total}`;
   document.getElementById('progress-bar').style.width = `${(pairIdx / total) * 100}%`;
   document.getElementById('input-meio').value = '';
   document.getElementById('input-meio').disabled = false;
@@ -434,11 +486,7 @@ function confirmPair() {
   advancePair();
 }
 
-function advancePair() {
-  pairIdx++;
-  updatePairUI();
-  startSim(300);
-}
+function advancePair() { pairIdx++; updatePairUI(); startSim(300); }
 
 document.getElementById('confirm-btn').addEventListener('click', confirmPair);
 document.getElementById('skip-btn').addEventListener('click', advancePair);
@@ -453,7 +501,6 @@ document.getElementById('next-round-btn').addEventListener('click', () => {
       return na && nb && !edgeExists(na.id, nb.id);
     });
   pairIdx = 0;
-
   document.getElementById('done-msg').style.display = 'none';
   document.getElementById('pair-prompt').style.opacity = '1';
   document.getElementById('input-meio').disabled = false;
@@ -468,7 +515,7 @@ document.getElementById('input-meio').addEventListener('keydown', e => {
   if (e.key === 'Escape') advancePair();
 });
 
-// ── Reset ─────────────────────────────────────────────────
+// ── Reset ──────────────────────────────────────────────────
 
 function resetAll() {
   nodes = []; edges = []; selected = null; nextId = 0; pairs = []; pairIdx = 0; round = 1; seenPairs = new Set();
@@ -484,7 +531,7 @@ function resetAll() {
 document.getElementById('reset-btn').addEventListener('click', resetAll);
 document.getElementById('reset-btn2').addEventListener('click', resetAll);
 
-// ── Export PNG ────────────────────────────────────────────
+// ── Export PNG ─────────────────────────────────────────────
 
 document.getElementById('export-png-btn').addEventListener('click', () => {
   const link = document.createElement('a');
@@ -493,7 +540,7 @@ document.getElementById('export-png-btn').addEventListener('click', () => {
   link.click();
 });
 
-// ── Export / Import JSON ──────────────────────────────────
+// ── Export / Import JSON ───────────────────────────────────
 
 document.getElementById('export-json-btn').addEventListener('click', () => {
   const data = JSON.stringify({ nodes, edges, directedMode }, null, 2);
@@ -531,13 +578,13 @@ document.getElementById('import-file-input').addEventListener('change', e => {
   e.target.value = '';
 });
 
-// ── Save / Load Session (localStorage) ───────────────────
+// ── Save / Load Session ────────────────────────────────────
 
 document.getElementById('save-btn').addEventListener('click', () => {
   localStorage.setItem('mindgraph_session', JSON.stringify({ nodes, edges, directedMode }));
   const btn = document.getElementById('save-btn');
-  btn.textContent = '✓ Saved';
-  setTimeout(() => btn.textContent = 'Save session', 1500);
+  btn.textContent = '✓ Saved!';
+  setTimeout(() => btn.textContent = '💾 Save', 1500);
 });
 
 document.getElementById('load-btn').addEventListener('click', () => {
@@ -558,14 +605,14 @@ document.getElementById('load-btn').addEventListener('click', () => {
   }
 });
 
-// ── Directed mode toggle ──────────────────────────────────
+// ── Directed toggle ────────────────────────────────────────
 
 document.getElementById('directed-toggle').addEventListener('change', e => {
   directedMode = e.target.checked;
   draw();
 });
 
-// ── Edit node label (double-click) ────────────────────────
+// ── Edit label (double-click) ──────────────────────────────
 
 function startEditNode(nd) {
   editingNode = nd;
@@ -582,12 +629,15 @@ function startEditNode(nd) {
   input.style.width = '100px';
   input.style.height = '28px';
   input.style.textAlign = 'center';
-  input.style.fontSize = '13px';
-  input.style.border = '2px solid #534AB7';
+  input.style.fontSize = '12px';
+  input.style.fontFamily = 'Inter, sans-serif';
+  input.style.border = '2px solid var(--accent, #534AB7)';
   input.style.borderRadius = '8px';
   input.style.padding = '0 6px';
   input.style.zIndex = '9999';
   input.style.outline = 'none';
+  input.style.background = darkMode ? '#1E1C2B' : '#fff';
+  input.style.color = darkMode ? '#EDEAF8' : '#1A1829';
   document.body.appendChild(input);
   input.focus();
   input.select();
@@ -607,7 +657,7 @@ function startEditNode(nd) {
   input.addEventListener('blur', finish);
 }
 
-// ── Mouse ─────────────────────────────────────────────────
+// ── Mouse ──────────────────────────────────────────────────
 
 function nodeAt(x, y) {
   return nodes.slice().reverse().find(nd => {
@@ -634,15 +684,12 @@ let lastClick = 0;
 canvas.addEventListener('mousedown', e => {
   const p = getPos(e), node = nodeAt(p.x, p.y);
   const now = Date.now();
-
-  // double-click to edit
   if (node && now - lastClick < 300) {
     startEditNode(node);
     lastClick = 0;
     return;
   }
   lastClick = now;
-
   selected = node || null;
   if (node) {
     dragging = node;
@@ -672,7 +719,7 @@ canvas.addEventListener('mouseup', () => {
 
 canvas.addEventListener('mouseleave', () => { dragging = null; });
 
-// ── Teclado ───────────────────────────────────────────────
+// ── Keyboard ───────────────────────────────────────────────
 
 document.addEventListener('keydown', e => {
   const tag = document.activeElement.tagName;
@@ -683,5 +730,3 @@ document.addEventListener('keydown', e => {
     startSim();
   }
 });
-
-draw();
