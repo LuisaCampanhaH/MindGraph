@@ -111,7 +111,8 @@ function edgeExists(idA, idB) {
 
 // ── Force simulation ───────────────────────────────────────
 
-const REPULSION = 8000, SPRING_LEN = 130, SPRING_K = 0.05, DAMPING = 0.82, CENTER_K = 0.008;
+const REPULSION = 8000, SPRING_LEN = 200, SPRING_K = 0.05, DAMPING = 0.82, CENTER_K = 0.008;
+const MEIO_REPULSION_MULT = 6; // extra repulsion between connector nodes
 let simSteps = 0;
 
 function simulateStep() {
@@ -124,7 +125,8 @@ function simulateStep() {
       const a = nodes[i], b = nodes[j];
       const dx = b.x - a.x, dy = b.y - a.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || .1;
-      const force = REPULSION / (dist * dist);
+      const mult = (a.group === 'meio' && b.group === 'meio') ? MEIO_REPULSION_MULT : 1;
+      const force = (REPULSION * mult) / (dist * dist);
       const fx = (dx / dist) * force, fy = (dy / dist) * force;
       a.fx -= fx; a.fy -= fy;
       b.fx += fx; b.fy += fy;
