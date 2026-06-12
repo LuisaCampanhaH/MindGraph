@@ -12,7 +12,6 @@ function resizeCanvas() {
 }
 
 window.addEventListener('resize', resizeCanvas);
-// Initial size after layout renders
 requestAnimationFrame(() => { resizeCanvas(); startSim(50); });
 
 let nodes = [], edges = [], selected = null, dragging = null;
@@ -27,17 +26,17 @@ let darkMode = false;
 
 function getColors() {
   return darkMode ? {
-    bg:           '#12111A',
-    dot:          'rgba(255,255,255,0.04)',
-    edge:         'rgba(255,255,255,0.12)',
-    edgeDash:     'rgba(127,119,221,0.4)',
-    empty:        'rgba(255,255,255,0.15)',
+    bg:       '#12111A',
+    dot:      'rgba(255,255,255,0.04)',
+    edge:     'rgba(255,255,255,0.12)',
+    edgeDash: 'rgba(127,119,221,0.4)',
+    empty:    'rgba(255,255,255,0.15)',
   } : {
-    bg:           '#FFFFFF',
-    dot:          'rgba(0,0,0,0.05)',
-    edge:         'rgba(0,0,0,0.13)',
-    edgeDash:     'rgba(83,74,183,0.3)',
-    empty:        'rgba(0,0,0,0.18)',
+    bg:       '#FFFFFF',
+    dot:      'rgba(0,0,0,0.05)',
+    edge:     'rgba(0,0,0,0.13)',
+    edgeDash: 'rgba(83,74,183,0.3)',
+    empty:    'rgba(0,0,0,0.18)',
   };
 }
 
@@ -107,9 +106,7 @@ let simSteps = 0;
 function simulateStep() {
   const n = nodes.length;
   if (!n) return;
-
   nodes.forEach(nd => { nd.fx = 0; nd.fy = 0; });
-
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       const a = nodes[i], b = nodes[j];
@@ -121,7 +118,6 @@ function simulateStep() {
       b.fx += fx; b.fy += fy;
     }
   }
-
   edges.forEach(e => {
     const a = nodes.find(n => n.id === e.from);
     const b = nodes.find(n => n.id === e.to);
@@ -133,12 +129,10 @@ function simulateStep() {
     a.fx += fx; a.fy += fy;
     b.fx -= fx; b.fy -= fy;
   });
-
   nodes.forEach(nd => {
     nd.fx += (W / 2 - nd.x) * CENTER_K;
     nd.fy += (H / 2 - nd.y) * CENTER_K;
   });
-
   nodes.forEach(nd => {
     if (dragging && dragging.id === nd.id) return;
     if (nd.fixed) return;
@@ -186,18 +180,15 @@ function draw() {
   const C = getColors();
   const GROUP_COLORS = getGroupColors();
 
-  // Background
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Dot grid
   ctx.fillStyle = C.dot;
   for (let x = 30; x < W; x += 28)
     for (let y = 30; y < H; y += 28) {
       ctx.beginPath(); ctx.arc(x, y, 1.2, 0, Math.PI * 2); ctx.fill();
     }
 
-  // Edges
   edges.forEach(e => {
     const a = nodes.find(n => n.id === e.from);
     const b = nodes.find(n => n.id === e.to);
@@ -212,14 +203,12 @@ function draw() {
     ctx.strokeStyle = C.edge;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
     ctx.stroke();
     if (directedMode) drawArrow(x1, y1, x2, y2);
     ctx.restore();
   });
 
-  // Dashed preview line for current pair
   const curPair = pairs[pairIdx];
   if (curPair) {
     const na = nodes.find(n => n.label === curPair[0]);
@@ -242,12 +231,10 @@ function draw() {
     }
   }
 
-  // Nodes
   nodes.forEach(nd => {
     const c = GROUP_COLORS[nd.group] || GROUP_COLORS.meio;
     const isSel = selected && selected.id === nd.id;
     const r = 28;
-
     let shape = 'circle';
     if (nd.group === 'teto') shape = 'tri-up';
     else if (nd.group === 'piso') shape = 'tri-down';
@@ -294,8 +281,7 @@ function draw() {
       ctx.lineWidth = 2;
       ctx.save();
       ctx.translate(nd.x, nd.y);
-      const sc = 1 + (0.18 + 0.08 * pulse);
-      ctx.scale(sc, sc);
+      ctx.scale(1 + 0.18 + 0.08 * pulse, 1 + 0.18 + 0.08 * pulse);
       ctx.translate(-nd.x, -nd.y);
       buildPath();
       ctx.restore();
@@ -306,8 +292,7 @@ function draw() {
     ctx.save();
     if (isSel) { ctx.shadowColor = c.stroke; ctx.shadowBlur = 16; }
     buildPath();
-    ctx.fillStyle = c.fill;
-    ctx.fill();
+    ctx.fillStyle = c.fill; ctx.fill();
     ctx.strokeStyle = c.stroke;
     ctx.lineWidth = (isSel || nd.highlight) ? 2.5 : 1.5;
     ctx.stroke();
@@ -316,8 +301,7 @@ function draw() {
     if (editingNode && editingNode.id === nd.id) return;
     ctx.save();
     ctx.font = '500 11px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = c.text;
     let label = nd.label;
     const maxW = r * 1.8;
@@ -334,9 +318,8 @@ function draw() {
     ctx.save();
     ctx.font = '500 13px Inter, sans-serif';
     ctx.fillStyle = C.empty;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Fill in the groups to generate the graph →', W / 2, H / 2);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Fill in the groups on the right to start →', W / 2, H / 2);
     ctx.restore();
   }
 }
@@ -386,8 +369,8 @@ document.getElementById('start-btn').addEventListener('click', () => {
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
 
   const allLabels = [];
-  tetos.forEach(l  => { const n = createNode(l, 'teto');        n.fixed = true; allLabels.push(l); });
-  pisos.forEach(l  => { const n = createNode(l, 'piso');        n.fixed = true; allLabels.push(l); });
+  tetos.forEach(l => { const n = createNode(l, 'teto'); n.fixed = true; allLabels.push(l); });
+  pisos.forEach(l  => { const n = createNode(l, 'piso'); n.fixed = true; allLabels.push(l); });
   rels.forEach((l, i) => { const n = createNode(l, 'relacionado'); n.fixed = true; n.relIdx = i; allLabels.push(l); });
 
   layoutNodes(nodes);
@@ -404,7 +387,6 @@ document.getElementById('start-btn').addEventListener('click', () => {
 
 function updatePairUI() {
   const total = pairs.length;
-
   while (pairIdx < total) {
     const [a, b] = pairs[pairIdx];
     const na = nodes.find(n => n.label === a);
@@ -412,7 +394,6 @@ function updatePairUI() {
     if (na && nb && edgeExists(na.id, nb.id)) { pairIdx++; continue; }
     break;
   }
-
   nodes.forEach(n => { n.highlight = false; n.pulse = 0; });
 
   if (pairIdx >= total) {
@@ -425,18 +406,15 @@ function updatePairUI() {
     document.getElementById('pair-counter').textContent = 'Round ' + round + ' done!';
     document.getElementById('progress-bar').style.width = '100%';
 
-    const newPairs = generatePairs(nodes.map(n => n.label))
-      .filter(([a, b]) => {
-        const key = [a, b].sort().join('|||');
-        if (seenPairs.has(key)) return false;
-        const na = nodes.find(n => n.label === a);
-        const nb = nodes.find(n => n.label === b);
-        return na && nb && !edgeExists(na.id, nb.id);
-      });
-
+    const newPairs = generatePairs(nodes.map(n => n.label)).filter(([a, b]) => {
+      const key = [a, b].sort().join('|||');
+      if (seenPairs.has(key)) return false;
+      const na = nodes.find(n => n.label === a);
+      const nb = nodes.find(n => n.label === b);
+      return na && nb && !edgeExists(na.id, nb.id);
+    });
     document.getElementById('next-round-btn').style.display = newPairs.length ? 'inline-flex' : 'none';
     document.getElementById('no-pairs-msg').style.display  = newPairs.length ? 'none' : 'inline';
-
     startSim(60);
     return;
   }
@@ -466,21 +444,17 @@ function updatePairUI() {
 function confirmPair() {
   const meio = document.getElementById('input-meio').value.trim();
   if (!meio) { advancePair(); return; }
-
   const [labelA, labelB] = pairs[pairIdx];
   const na = nodes.find(n => n.label === labelA);
   const nb = nodes.find(n => n.label === labelB);
   if (!na || !nb) { advancePair(); return; }
-
   if (edgeExists(na.id, nb.id)) removeEdge(na.id, nb.id);
-
   let nm = findNode(meio);
   if (!nm) {
     const mx = (na.x + nb.x) / 2 + (Math.random() - 0.5) * 30;
     const my = (na.y + nb.y) / 2 + (Math.random() - 0.5) * 30;
     nm = createNode(meio, 'meio', mx, my);
   }
-
   getOrCreateEdge(na.id, nm.id);
   getOrCreateEdge(nm.id, nb.id);
   advancePair();
@@ -492,14 +466,13 @@ document.getElementById('confirm-btn').addEventListener('click', confirmPair);
 document.getElementById('skip-btn').addEventListener('click', advancePair);
 document.getElementById('next-round-btn').addEventListener('click', () => {
   round++;
-  pairs = generatePairs(nodes.map(n => n.label))
-    .filter(([a, b]) => {
-      const key = [a, b].sort().join('|||');
-      if (seenPairs.has(key)) return false;
-      const na = nodes.find(n => n.label === a);
-      const nb = nodes.find(n => n.label === b);
-      return na && nb && !edgeExists(na.id, nb.id);
-    });
+  pairs = generatePairs(nodes.map(n => n.label)).filter(([a, b]) => {
+    const key = [a, b].sort().join('|||');
+    if (seenPairs.has(key)) return false;
+    const na = nodes.find(n => n.label === a);
+    const nb = nodes.find(n => n.label === b);
+    return na && nb && !edgeExists(na.id, nb.id);
+  });
   pairIdx = 0;
   document.getElementById('done-msg').style.display = 'none';
   document.getElementById('pair-prompt').style.opacity = '1';
@@ -570,15 +543,13 @@ document.getElementById('import-file-input').addEventListener('change', e => {
       document.getElementById('phase1-panel').style.display = 'none';
       document.getElementById('phase2-panel').style.display = 'none';
       startSim(300);
-    } catch {
-      alert('Invalid JSON file.');
-    }
+    } catch { alert('Invalid JSON file.'); }
   };
   reader.readAsText(file);
   e.target.value = '';
 });
 
-// ── Save / Load Session ────────────────────────────────────
+// ── Save / Load ────────────────────────────────────────────
 
 document.getElementById('save-btn').addEventListener('click', () => {
   localStorage.setItem('mindgraph_session', JSON.stringify({ nodes, edges, directedMode }));
@@ -600,9 +571,7 @@ document.getElementById('load-btn').addEventListener('click', () => {
     document.getElementById('phase1-panel').style.display = 'none';
     document.getElementById('phase2-panel').style.display = 'none';
     startSim(300);
-  } catch {
-    alert('Failed to load session.');
-  }
+  } catch { alert('Failed to load session.'); }
 });
 
 // ── Directed toggle ────────────────────────────────────────
@@ -612,36 +581,27 @@ document.getElementById('directed-toggle').addEventListener('change', e => {
   draw();
 });
 
-// ── Edit label (double-click) ──────────────────────────────
+// ── Edit label ─────────────────────────────────────────────
 
 function startEditNode(nd) {
   editingNode = nd;
   const rect = canvas.getBoundingClientRect();
-  const scaleX = rect.width / W;
-  const scaleY = rect.height / H;
-
   const input = document.createElement('input');
   input.type = 'text';
   input.value = nd.label;
-  input.style.position = 'fixed';
-  input.style.left  = (rect.left + nd.x * scaleX - 50) + 'px';
-  input.style.top   = (rect.top  + nd.y * scaleY - 14) + 'px';
-  input.style.width = '100px';
-  input.style.height = '28px';
-  input.style.textAlign = 'center';
-  input.style.fontSize = '12px';
-  input.style.fontFamily = 'Inter, sans-serif';
-  input.style.border = '2px solid var(--accent, #534AB7)';
-  input.style.borderRadius = '8px';
-  input.style.padding = '0 6px';
-  input.style.zIndex = '9999';
-  input.style.outline = 'none';
-  input.style.background = darkMode ? '#1E1C2B' : '#fff';
-  input.style.color = darkMode ? '#EDEAF8' : '#1A1829';
+  input.style.cssText = `
+    position:fixed;
+    left:${rect.left + nd.x * (rect.width / W) - 50}px;
+    top:${rect.top + nd.y * (rect.height / H) - 14}px;
+    width:100px; height:28px;
+    text-align:center; font-size:12px; font-family:Inter,sans-serif;
+    border:2px solid #534AB7; border-radius:8px;
+    padding:0 6px; z-index:9999; outline:none;
+    background:${darkMode ? '#1E1C2B' : '#fff'};
+    color:${darkMode ? '#EDEAF8' : '#1A1829'};
+  `;
   document.body.appendChild(input);
-  input.focus();
-  input.select();
-
+  input.focus(); input.select();
   function finish() {
     const val = input.value.trim();
     if (val) nd.label = val;
@@ -649,7 +609,6 @@ function startEditNode(nd) {
     document.body.removeChild(input);
     draw();
   }
-
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') finish();
     if (e.key === 'Escape') { editingNode = null; document.body.removeChild(input); draw(); }
@@ -661,12 +620,9 @@ function startEditNode(nd) {
 
 function nodeAt(x, y) {
   return nodes.slice().reverse().find(nd => {
-    const dx = x - nd.x, dy = y - nd.y;
-    const r = 28;
-    if (nd.group === 'teto' || nd.group === 'piso')
-      return Math.abs(dx) <= r * 1.1 && Math.abs(dy) <= r * 1.1;
-    if (nd.group === 'relacionado')
-      return Math.abs(dx) <= r * 1.1 && Math.abs(dy) <= r * 1.3;
+    const dx = x - nd.x, dy = y - nd.y, r = 28;
+    if (nd.group === 'teto' || nd.group === 'piso') return Math.abs(dx) <= r * 1.1 && Math.abs(dy) <= r * 1.1;
+    if (nd.group === 'relacionado') return Math.abs(dx) <= r * 1.1 && Math.abs(dy) <= r * 1.3;
     return Math.hypot(dx, dy) <= r;
   });
 }
@@ -682,13 +638,8 @@ function getPos(e) {
 let lastClick = 0;
 
 canvas.addEventListener('mousedown', e => {
-  const p = getPos(e), node = nodeAt(p.x, p.y);
-  const now = Date.now();
-  if (node && now - lastClick < 300) {
-    startEditNode(node);
-    lastClick = 0;
-    return;
-  }
+  const p = getPos(e), node = nodeAt(p.x, p.y), now = Date.now();
+  if (node && now - lastClick < 300) { startEditNode(node); lastClick = 0; return; }
   lastClick = now;
   selected = node || null;
   if (node) {
